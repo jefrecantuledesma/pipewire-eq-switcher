@@ -2,6 +2,13 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.python-build]
-requires = ["setuptools", "wheel"]
+[metadata]
+name = "pipewire-eq-switcher"
+version = "1.0.0"
+author = "Your Name"
+description = "A script to swap EQs for PipeWire."
+license = "MIT"
+
+[options]
+python_requires = ">=3.6"
 
