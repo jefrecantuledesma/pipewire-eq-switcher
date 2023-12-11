@@ -1,0 +1,7 @@
+[build-system]
+requires = ["python-build", "python-installer"]
+build-backend = "python-build"
+
+[tool.python-build]
+requires = ["setuptools", "wheel"]
+
