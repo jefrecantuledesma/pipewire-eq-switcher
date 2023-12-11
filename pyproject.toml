@@ -1,6 +1,6 @@
 [build-system]
-requires = ["python-build", "python-installer"]
-build-backend = "python-build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.python-build]
 requires = ["setuptools", "wheel"]
