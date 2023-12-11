@@ -8,9 +8,10 @@ DEFAULT_CONFIG_NAME = "sink-eq6.conf"
 
 def list_configs():
     print("Available configurations:")
-    configs = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.conf')]
+    configs = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.conf') and not f.endswith('sink-eq6.conf')]
+    configs.sort()
     for i, config in enumerate(configs, start=1):
-        config = config.replace(".config", "")
+        config = config.replace(".conf", "")
         print(f"{i}. {config}")
 
 def select_config():
