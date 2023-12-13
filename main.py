@@ -11,7 +11,6 @@ def list_configs():
     configs = [f for f in os.listdir(CONFIG_DIR) if not f.endswith('.conf')]
     configs.sort()
     for i, config in enumerate(configs, start=1):
-        config = config.replace(".conf", "")
         print(f"{i}. {config}")
 
 def select_config():
@@ -43,7 +42,7 @@ def restart_services():
 
 if __name__ == "__main__":
     selected_config_index = int(select_config()) - 1
-    configs = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.conf')]
+    configs = [f for f in os.listdir(CONFIG_DIR) if not f.endswith('.conf')]
 
     try:
         selected_config = configs[selected_config_index]
