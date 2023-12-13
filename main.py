@@ -23,9 +23,7 @@ def replace_default_config(selected_config):
     selected_config_path = os.path.join(CONFIG_DIR, selected_config)
 
     try:
-        os.remove(default_config_path)
-        os.rename(selected_config_path, default_config_path)
-        shutil.copy(default_config_path, selected_config_path)
+        shutil.copy(selected_config_path, default_config_path)
         print("Configuration updated successfully!")
     except FileNotFoundError:
         print("Error: File not found.")
