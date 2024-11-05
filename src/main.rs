@@ -14,7 +14,7 @@ fn config_dir() -> String {
     config_dir
 }
 
-fn get_current_config(default_config_path: String) {
+fn get_config_name(default_config_path: String) -> String {
     let file = File::open(&default_config_path).expect("Couldn't read file. Does it exist?");
     let mut target_line = String::new();
 
@@ -28,21 +28,25 @@ fn get_current_config(default_config_path: String) {
     }
     let parts = target_line.split("= ");
     let target_conf = parts.collect::<Vec<&str>>()[1];
-    println!("Current config: {}", target_conf.replace('"', ""));
+    target_conf.replace('"', "")
 }
 
 fn list_configs(config_dir: String) -> Vec<String> {
     println!("Available configurations:");
-    let paths = fs::read_dir(config_dir).unwrap();
+    let mut paths: Vec<_> = fs::read_dir(config_dir)
+        .unwrap()
+        .map(|r| r.unwrap())
+        .collect();
+    paths.sort_by_key(|dir| dir.path());
     let mut all_confs = Vec::<String>::new();
     let mut counter: i8 = 1;
     for path in paths {
-        let path_str = path.unwrap().path().into_os_string().into_string().unwrap();
+        let path_str = path.path().into_os_string().into_string().unwrap();
         if let Some(index) = path_str.clone().rfind("/") {
             let file_name = &path_str[(index + 1)..];
             if !file_name.contains(".conf") {
                 all_confs.push(file_name.to_string());
-                println!("{}: {}", counter, file_name.to_string());
+                println!("{}: {}", counter, get_config_name(path_str));
                 counter += 1;
             }
         };
@@ -104,7 +108,10 @@ fn main() {
     let default_config_name = String::from("sink-eq6.conf");
     let config_dir = config_dir();
     let default_config_path: String = config_dir.clone() + &default_config_name;
-    get_current_config(default_config_path.clone());
+    println!(
+        "Current config: {}",
+        get_config_name(default_config_path.clone())
+    );
     let all_confs = list_configs(config_dir.clone());
     let selection_number = select_config(all_confs.clone());
     let selection = &all_confs[selection_number];
