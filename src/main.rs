@@ -1,6 +1,7 @@
 use expanduser::expanduser;
 use std::fs::{self, copy, File};
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 use std::process;
 use std::process::Command;
 use text_io::read;
@@ -15,41 +16,50 @@ fn config_dir() -> String {
 }
 
 fn get_config_name(default_config_path: String) -> String {
-    let file = File::open(&default_config_path).expect("Couldn't read file. Does it exist?");
-    let mut target_line = String::new();
+    let file = match File::open(&default_config_path) {
+        Ok(f) => f,
+        Err(_) => return String::from("Unknown"),
+    };
 
     let reader = BufReader::new(file);
     for line_result in reader.lines() {
-        let line = line_result.unwrap();
-        if line.contains("media.name") {
-            target_line = line;
-            break;
+        if let Ok(line) = line_result {
+            if line.contains("media.name") {
+                if let Some(name_part) = line.split("= ").nth(1) {
+                    return name_part.replace('"', "");
+                }
+            }
         }
     }
-    let parts = target_line.split("= ");
-    let target_conf = parts.collect::<Vec<&str>>()[1];
-    target_conf.replace('"', "")
+    String::from("Unknown")
 }
 
 fn list_configs(config_dir: String) -> Vec<String> {
     println!("Available configurations:");
-    let mut paths: Vec<_> = fs::read_dir(config_dir)
+    let paths_result = fs::read_dir(&config_dir);
+    if paths_result.is_err() {
+        eprintln!("Error: Could not read config directory. Does ~/.config/pipewire/pipewire.conf.d/ exist?");
+        process::exit(1);
+    }
+
+    let mut paths: Vec<_> = paths_result
         .unwrap()
-        .map(|r| r.unwrap())
+        .filter_map(|r| r.ok())
         .collect();
     paths.sort_by_key(|dir| dir.path());
     let mut all_confs = Vec::<String>::new();
     let mut counter: i8 = 1;
     for path in paths {
-        let path_str = path.path().into_os_string().into_string().unwrap();
-        if let Some(index) = path_str.clone().rfind("/") {
-            let file_name = &path_str[(index + 1)..];
-            if !file_name.contains(".conf") {
-                all_confs.push(file_name.to_string());
-                println!("{}: {}", counter, get_config_name(path_str));
+        let file_path = path.path();
+        if let Some(file_name) = file_path.file_name() {
+            let file_name_str = file_name.to_string_lossy();
+            // Only include files WITHOUT .conf extension
+            if Path::new(&file_name_str.as_ref()).extension().is_none() {
+                all_confs.push(file_name_str.to_string());
+                println!("{}: {}", counter, get_config_name(file_path.to_string_lossy().to_string()));
                 counter += 1;
             }
-        };
+        }
     }
     println!("{}: (Q)uit", counter);
     return all_confs;
@@ -64,7 +74,13 @@ fn select_config(all_confs: Vec<String>) -> usize {
         let validity_check = input_text.parse::<usize>();
 
         match validity_check {
-            Ok(value) => return value - 1,
+            Ok(value) => {
+                if value == 0 || value > all_confs.len() {
+                    println!("Selection out of range. Please choose a number between 1 and {}.", all_confs.len());
+                    return select_config(all_confs);
+                }
+                return value - 1;
+            }
             Err(_err) => {
                 println!("You did not enter a valid value.");
                 return select_config(all_confs);
@@ -74,8 +90,11 @@ fn select_config(all_confs: Vec<String>) -> usize {
 }
 
 fn replace_config(config_dir: String, default_config_path: String, selection: String) {
-    let selection_path: String = config_dir + &selection;
-    copy(selection_path, default_config_path).expect("Could not copy :(");
+    let selection_path = Path::new(&config_dir).join(&selection);
+    if let Err(e) = copy(&selection_path, &default_config_path) {
+        eprintln!("Error: Could not copy configuration file: {}", e);
+        process::exit(1);
+    }
 }
 
 fn reload_pipewire() {
@@ -83,21 +102,33 @@ fn reload_pipewire() {
         .arg("--user")
         .arg("restart")
         .arg("pipewire")
-        .spawn();
+        .status();
     let mut flag1 = false;
     let pipewire_pulse_restart = Command::new("systemctl")
         .arg("--user")
         .arg("restart")
         .arg("pipewire-pulse")
-        .spawn();
+        .status();
     let mut flag2 = false;
     match pipewire_restart {
-        Ok(_val) => flag1 = true,
-        Err(_err) => println!("Did not successfully restart pipewire."),
+        Ok(status) => {
+            if status.success() {
+                flag1 = true;
+            } else {
+                eprintln!("Failed to restart pipewire (exit code: {:?})", status.code());
+            }
+        }
+        Err(e) => eprintln!("Could not execute systemctl for pipewire: {}", e),
     }
     match pipewire_pulse_restart {
-        Ok(_val) => flag2 = true,
-        Err(_err) => println!("Did not successfully restart pipewire-pulse."),
+        Ok(status) => {
+            if status.success() {
+                flag2 = true;
+            } else {
+                eprintln!("Failed to restart pipewire-pulse (exit code: {:?})", status.code());
+            }
+        }
+        Err(e) => eprintln!("Could not execute systemctl for pipewire-pulse: {}", e),
     }
     if flag1 && flag2 {
         println!("Successfully restarted pipewire and pipewire-pulse!");
@@ -107,7 +138,10 @@ fn reload_pipewire() {
 fn main() {
     let default_config_name = String::from("sink-eq6.conf");
     let config_dir = config_dir();
-    let default_config_path: String = config_dir.clone() + &default_config_name;
+    let default_config_path = Path::new(&config_dir)
+        .join(&default_config_name)
+        .to_string_lossy()
+        .to_string();
     println!(
         "Current config: {}",
         get_config_name(default_config_path.clone())
